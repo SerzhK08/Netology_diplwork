@@ -1,0 +1,135 @@
+import requests
+import datetime
+import os
+import yadisk
+from pprint import pprint
+import json
+import sys
+import time
+from tqdm import tqdm
+
+
+
+with open('content/tokens.txt', 'r', encoding='utf8') as file_object:
+    TOKEN_VK = file_object.readline().strip()
+    ID_VK = file_object.readline().strip()
+    TOKEN_YA = file_object.readline().strip()
+    print(TOKEN_VK)
+
+class user_VK:
+
+    def __init__(self, access_token, user_id, version='5.131'):
+        self.token = access_token
+        self.id = user_id
+        self.version = version
+        self.params = {'access_token': self.token, 'v': self.version}
+
+    def get_info(self):
+        url = 'https://api.vk.com/method/users.get'
+        params = {'user_ids': self.id}
+        response = requests.get(url, params={**self.params, **params})
+        return response.json()  # status_code
+
+    def get_photo(self):
+        # https://api.vk.com/method/photos.get
+        url = 'https://api.vk.com/method/photos.get'
+        params = {'album_id': 'profile', 'owner_id': self.id, 'photo_ids': '' , 'extended': 1}
+        response = requests.get(url, params={**self.params, **params})
+        return response.json()
+
+    def parsed_photo(self, json_photo: dict) -> list:
+        # здесь обрабатываем данные из get_photo, даем название и т.п.
+        list_end = []
+
+        for v1 in json_photo.values():  # v1 - это первый словарь
+            # pprint(type(v1))
+            for v2 in v1['items']:
+                dict_end = {}
+                # print(v2[id])
+                for k3, v3 in v2.items():
+                    if k3 == 'id':
+                        dict_end[k3] = v3
+                    elif k3 == 'date':
+                        dict_end[k3] = v3
+                    elif k3 == 'likes':
+                        likes_count = v3['count']
+                        dict_end[k3] = v3['count']
+                    elif k3 == 'sizes':
+                        # pprint(v3[len(v3)-1])
+                        url = v3[- 1]['url']
+                        dict_end['url'] = url
+                list_end.append(dict_end)
+        return list_end
+
+class user_YA:
+
+    def __init__(self, access_token) -> None:
+        self.token = access_token
+
+    def upload_file(self, folder_name: str, photos_list: list):
+        print('Идет загрузка фотографий на Яндекс.Диск:')
+        print('-------------------------')
+        for photo in tqdm(photos_list):
+            file_name = photo[0]
+            y = yadisk.YaDisk(token=self.token)
+            if not y.is_dir(folder_name):
+                y.mkdir(f'{folder_name}')
+                y.upload(f'{photo[0]}/{photo[1]}', f'{folder_name}/{file_name}')
+            else:
+                y.upload(f'{photo[0]}/{photo[1]}', f'{folder_name}/{photo[1]}')
+                os.remove(f'{photo[0]}/{photo[1]}')
+            time.sleep(0.1)
+
+
+
+def likes_qty(list_photo: list) -> set:
+    likes_set = set()
+    for i in list_photo:
+        likes_set.add(i['likes'])
+    return likes_set
+
+def download_photo(url, newpath, filename):
+    if not os.path.exists(newpath):
+        os.makedirs(newpath)
+    r = requests.get(url, stream=True)
+    with open(newpath+'/'+filename, 'bw') as file:
+        for chunk in r.iter_content(4096):
+            file.write(chunk)
+
+
+def main():
+    vk_id = ID_VK #input("Введите номер пользователя")
+    name_directory = "Backup_" + str(datetime.date.today()).replace('-', '_')  # input("Введите название папки для хранения файла на Яндекс.диске: ")
+    vk_token = TOKEN_VK
+    vk = user_VK(vk_token, vk_id)
+    # json_info = vk.get_info()
+    json_photo = vk.get_photo()
+    json_parsed = vk.parsed_photo(json_photo)
+
+
+    # скачиваем файлы на диск
+    likes_set = likes_qty(json_parsed)
+    photos_list = []
+    print('Идет выгрузка фотографий с сайта VK:')
+    print('-------------------------')
+
+    for photo in tqdm(json_parsed):
+        if photo['likes'] in likes_set:
+            file_name = str(photo['likes']) + '_' + str(photo['date']) + '.jpg'
+        else:
+            file_name = str(photo['date']) + '.jpg'
+        Path = "DIPLOM" # input("Введите название папки для временного хранения файлов на локальном компьютере: ")
+        download_photo(photo['url'], Path, str(file_name))
+        photos_param = (Path, file_name)
+        photos_list.append(photos_param)
+        time.sleep(0.2)
+
+    choise = "1"
+    if choise == "1":
+        user_yandex = user_YA(TOKEN_YA)
+        user_yandex.upload_file(name_directory, photos_list)
+
+
+
+if __name__ == '__main__':
+    main()
