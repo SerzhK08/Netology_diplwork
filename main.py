@@ -10,11 +10,11 @@ from tqdm import tqdm
 
 
 
-with open('content/tokens.txt', 'r', encoding='utf8') as file_object:
+with open('DIPLOM/tokens.txt', 'r', encoding='utf8') as file_object:
     TOKEN_VK = file_object.readline().strip()
     ID_VK = file_object.readline().strip()
     TOKEN_YA = file_object.readline().strip()
-    print(TOKEN_VK)
+    # print(TOKEN_VK)
 
 class user_VK:
 
